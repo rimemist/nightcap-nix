@@ -28,6 +28,22 @@
         in
         {
           packages.default = package;
+          packages.mocktail = package;
+          packages.nightcap = package;
+
+          apps.default = {
+            type = "app";
+            program = "${package}/bin/nightcap";
+          };
+          apps.vr = {
+            type = "app";
+            program = "${package}/bin/nightcap-vr";
+          };
+          apps.desktop = {
+            type = "app";
+            program = "${package}/bin/nightcap-desktop";
+          };
+
           devShells.default = pkgs.mkShell {
             inputsFrom = [ package ];
 
@@ -61,13 +77,25 @@
             ];
 
             shellHook = ''
-              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${pkgs.lib.makeLibraryPath package.buildInputs}"
+              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${pkgs.lib.makeLibraryPath package.buildInputs}:/run/opengl-driver/lib"
+              export GIO_EXTRA_MODULES="${pkgs.glib-networking}/lib/gio/modules"
+              export XDG_DATA_DIRS="$XDG_DATA_DIRS:${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}"
+
+              if [ -f /run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json ]; then
+                export VK_DRIVER_FILES="/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"
+                export VK_ICD_FILENAMES="/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"
+              fi
 
               # nix packages graphics drivers differently, and mocktail will still work if it cannot guarantee symbols
               export MOCKTAIL_REQUIRE_REAL_GRAPHICS=0
             '';
           };
         };
-      flake = { };
+      flake = {
+        overlays.default = final: prev: {
+          nightcap = final.callPackage ./packaging/nix/package.nix { };
+          mocktail = final.nightcap;
+        };
+      };
     };
 }

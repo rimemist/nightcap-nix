@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <string_view>
 
 namespace mocktail::vr {
 namespace {
@@ -11,6 +13,11 @@ constexpr std::size_t kButtons =
 constexpr std::size_t kAxes = static_cast<std::size_t>(ControllerAxis::kCount);
 
 bool IsValidHand(int hand) { return hand == 0 || hand == 1; }
+
+bool DisableVrMenu() {
+  const char *env = std::getenv("MOCKTAIL_VR_DISABLE_MENU");
+  return env != nullptr && std::string_view(env) != "0";
+}
 
 } // namespace
 
@@ -178,7 +185,7 @@ int32_t ControllerButtonToAndroidKey(int hand, ControllerButton button) {
   case ControllerButton::kThumbstick:
     return right ? 107 : 106; // THUMB_R / L
   case ControllerButton::kMenu:
-    return 108; // BUTTON_START
+    return DisableVrMenu() ? -1 : 108; // BUTTON_START
   case ControllerButton::kTrigger:
     return -1; // analog click, no keycode
   case ControllerButton::kCount:
@@ -237,7 +244,7 @@ int32_t ControllerButtonToSdlOrdinal(int hand, ControllerButton button) {
   case ControllerButton::kSqueeze:
     return hand == 1 ? 10 : 9;
   case ControllerButton::kMenu:
-    return 6;
+    return DisableVrMenu() ? -1 : 6;
   case ControllerButton::kTrigger:
     return -1; // analog click, no button
   case ControllerButton::kCount:
@@ -288,7 +295,9 @@ bool EncodeNativeControllerChannels(const ControllerSnapshot &snapshot,
         hand == 0 ? ControllerButton::kFaceWest : ControllerButton::kFaceSouth);
     channels[hand == 0 ? 25 : 23] = button(
         hand == 0 ? ControllerButton::kFaceNorth : ControllerButton::kFaceEast);
-    channels[27] = std::max(channels[27], button(ControllerButton::kMenu));
+    if (!DisableVrMenu()) {
+      channels[27] = std::max(channels[27], button(ControllerButton::kMenu));
+    }
   }
 
   return snapshot.hands[0].connected || snapshot.hands[1].connected;

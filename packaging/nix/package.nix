@@ -17,6 +17,7 @@
   gamemode,
   glib,
   glib-networking,
+  gsettings-desktop-schemas,
   gtk4,
   hicolor-icon-theme,
   libadwaita,
@@ -40,12 +41,26 @@
 }:
 let
   # submodules are not part of the flake source tree
-  # so Vulkan-Headers is fetched from its pinned upstream revision
+  # so submodules are fetched from their pinned upstream revisions
   vulkanHeadersSrc = fetchFromGitHub {
     owner = "KhronosGroup";
     repo = "Vulkan-Headers";
     rev = "8d6039a455a7ecc7d2a592ff97f62db4e59b70bf";
     hash = "sha256-+llJlEdzFcmqGBAdKHjYhkwBuH19ZngavmF1TQgejsI=";
+  };
+
+  openXrSdkSrc = fetchFromGitHub {
+    owner = "KhronosGroup";
+    repo = "OpenXR-SDK";
+    rev = "f2448a8797c85814aa892efc1ab8707900fbcc78";
+    hash = "sha256-glcHMArDabXbrxO4CY2QeTJFTeUTQH4v1O03LuhML7E=";
+  };
+
+  smaaSrc = fetchFromGitHub {
+    owner = "iryoku";
+    repo = "smaa";
+    rev = "71c806a838bdd7d517df19192a20f0c61b3ca29d";
+    hash = "sha256-bxM4CVwCSdJXIyFzxLJ8tGOX+yUb9BkdgSypWdL2tc8=";
   };
 
   src = ../..;
@@ -83,6 +98,7 @@ stdenv.mkDerivation (finalAttrs: {
     gamemode
     glib
     glib-networking
+    gsettings-desktop-schemas
     gtk4
     hicolor-icon-theme
     libadwaita
@@ -106,8 +122,10 @@ stdenv.mkDerivation (finalAttrs: {
   ];
 
   preConfigure = ''
-    rm -rf third_party/Vulkan-Headers
+    rm -rf third_party/Vulkan-Headers third_party/OpenXR-SDK third_party/smaa
     cp -r --no-preserve=mode ${vulkanHeadersSrc} third_party/Vulkan-Headers
+    cp -r --no-preserve=mode ${openXrSdkSrc} third_party/OpenXR-SDK
+    cp -r --no-preserve=mode ${smaaSrc} third_party/smaa
   '';
 
   # nixpkgs installs the header we need under include/libutf8proc
@@ -119,13 +137,27 @@ stdenv.mkDerivation (finalAttrs: {
     "-DMOCKTAIL_DEFAULT_COMPATIBILITY_MANIFEST=${placeholder "out"}/share/mocktail/metadata/roblox_compatibility.json"
     "-DMOCKTAIL_DEFAULT_SIGNING_TRUST_MANIFEST=${placeholder "out"}/share/mocktail/metadata/roblox_signing_certificates.json"
     "-DMOCKTAIL_DEFAULT_DOWNLOAD_SOURCES_MANIFEST=${placeholder "out"}/share/mocktail/metadata/roblox_download_sources.json"
+    "-DMOCKTAIL_ENABLE_VR=ON"
     "-DBUILD_TESTING=OFF"
   ];
 
   postInstall = ''
     for binary in $out/bin/*; do
-    	wrapProgram "$binary" --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath finalAttrs.buildInputs} --prefix GIO_EXTRA_MODULES : "${glib-networking}/lib/gio/modules"
+      wrapProgram "$binary" \
+        --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath finalAttrs.buildInputs}:/run/opengl-driver/lib" \
+        --prefix GIO_EXTRA_MODULES : "${glib-networking}/lib/gio/modules" \
+        --prefix XDG_DATA_DIRS : "${gsettings-desktop-schemas}/share/gsettings-schemas/${gsettings-desktop-schemas.name}:$out/share" \
+        --set-default LIBVULKAN_PATH "${vulkan-loader}/lib/libvulkan.so.1" \
+        --set-default MOCKTAIL_VR_SRGB "1" \
+        --set-default MOCKTAIL_VR_DISABLE_MENU "1" \
+        --set-default MOCKTAIL_REQUIRE_REAL_GRAPHICS "0" \
+        --run 'if [ -f /run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json ]; then export VK_DRIVER_FILES="/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"; export VK_ICD_FILENAMES="/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"; fi'
     done
+
+    # Convenience wrappers
+    makeWrapper "$out/bin/mocktail" "$out/bin/nightcap"
+    makeWrapper "$out/bin/mocktail" "$out/bin/nightcap-vr" --add-flags "--vr"
+    makeWrapper "$out/bin/mocktail" "$out/bin/nightcap-desktop" --add-flags "--no-vr"
   '';
 
   fixupPhase = ''

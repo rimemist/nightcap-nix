@@ -117,7 +117,19 @@ struct Vulkan {
   }
 
   void OpenLoader() {
-    library = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+    const char* custom_vk = std::getenv("LIBVULKAN_PATH");
+    if (custom_vk && custom_vk[0] != '\0') {
+      library = dlopen(custom_vk, RTLD_NOW | RTLD_LOCAL);
+    }
+    if (library == nullptr) {
+      library = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+    }
+    if (library == nullptr) {
+      library = dlopen("/nix/store/wsawm4nismaxz5lzc40ywcwyi1mcn6xv-vulkan-loader-1.4.357.0/lib/libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+    }
+    if (library == nullptr) {
+      library = dlopen(nullptr, RTLD_NOW | RTLD_LOCAL);
+    }
     Require(library != nullptr,
             "Cannot load the host Vulkan loader libvulkan.so.1");
     get_instance_proc = reinterpret_cast<PFN_vkGetInstanceProcAddr>(

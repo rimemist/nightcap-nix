@@ -187,7 +187,7 @@ VkFormat LinearTwin(VkFormat format) {
 }
 
 bool PreferSrgbSwapchain() {
-  static const bool enabled = EnvString("MOCKTAIL_VR_SRGB", "0") == "1";
+  static const bool enabled = EnvString("MOCKTAIL_VR_SRGB", "1") != "0";
   return enabled;
 }
 
@@ -619,7 +619,19 @@ Status OpenXrBackend::Arm(VrGraphicsApi graphics_api) {
     }
     graphics_api_ = graphics_api;
     if (graphics_api_ == VrGraphicsApi::kVulkan) {
-      vk_loader_ = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+      const char* custom_vk = std::getenv("LIBVULKAN_PATH");
+      if (custom_vk && custom_vk[0] != '\0') {
+        vk_loader_ = dlopen(custom_vk, RTLD_NOW | RTLD_LOCAL);
+      }
+      if (vk_loader_ == nullptr) {
+        vk_loader_ = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+      }
+      if (vk_loader_ == nullptr) {
+        vk_loader_ = dlopen("/nix/store/wsawm4nismaxz5lzc40ywcwyi1mcn6xv-vulkan-loader-1.4.357.0/lib/libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+      }
+      if (vk_loader_ == nullptr) {
+        vk_loader_ = dlopen(nullptr, RTLD_NOW | RTLD_LOCAL);
+      }
       Require(vk_loader_ != nullptr,
               "Cannot load the host Vulkan loader libvulkan.so.1");
       auto loader_gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
@@ -1457,7 +1469,8 @@ void OpenXrBackend::MatchSwapchainFormatToEyesLocked() {
     return;
   }
   if (preferred == current ||
-      (FormatIsCopyCompatible(eye, current) &&
+      (!PreferSrgbSwapchain() &&
+       FormatIsCopyCompatible(eye, current) &&
        FormatIsCopyCompatible(eye, preferred))) {
     return;  // already a raw copy
   }
@@ -2303,8 +2316,11 @@ VkFormat internal::PreferredEyeSwapchainFormat(
            std::find(available.begin(), available.end(),
                      static_cast<std::int64_t>(format)) != available.end();
   };
+  const bool prefer_srgb = PreferSrgbSwapchain();
+  const VkFormat first = prefer_srgb ? SrgbSibling(eye) : eye;
+  const VkFormat second = prefer_srgb ? eye : SrgbSibling(eye);
   for (const VkFormat candidate :
-       {eye, SrgbSibling(eye), OtherChannelOrder(eye)}) {
+       {first, OtherChannelOrder(first), second, OtherChannelOrder(second)}) {
     if (offered(candidate)) return candidate;
   }
   return VK_FORMAT_UNDEFINED;

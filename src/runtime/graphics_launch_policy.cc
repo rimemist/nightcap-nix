@@ -25,6 +25,7 @@ constexpr char kVulkanClientSettingsOverrides[] =
     R"({"FStringGraphicsVulkanShaderMTDenyPattern":"4318:.*"})";
 
 constexpr const char* kIcdDirectories[] = {
+    "/run/opengl-driver/share/vulkan/icd.d",
     "/usr/share/vulkan/icd.d",
     "/etc/vulkan/icd.d",
     "/usr/local/share/vulkan/icd.d",
