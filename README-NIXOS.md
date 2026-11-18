@@ -19,30 +19,37 @@ nix run github:rimemist/nightcap-nix -- --settings
 ```
 
 ### Подключение в конфигурацию NixOS:
-В ваш `flake.nix`:
-```nix
-{
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nightcap.url = "github:rimemist/nightcap-nix";
-  };
 
-  outputs = { self, nixpkgs, nightcap, ... }: {
-    nixosConfigurations.yourhostname = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        # Добавляем оверлей:
-        { nixpkgs.overlays = [ nightcap.overlays.default ]; }
-        # Либо напрямую пакет:
-        ({ pkgs, ... }: {
-          environment.systemPackages = [
-            pkgs.nightcap
-          ];
-        })
-      ];
-    };
-  };
-}
+1. Добавьте вход в ваш `flake.nix`:
+```nix
+inputs = {
+  nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  nightcap.url = "github:rimemist/nightcap-nix";
+};
+```
+
+2. Выберите **один из двух вариантов** подключения в систему:
+
+#### Вариант А: Напрямую через `inputs` (Рекомендуется)
+Если у вас модульная конфигурация (например, `configuration.nix`), убедитесь, что в аргументах модуля есть `inputs` (`{ config, pkgs, inputs, ... }:`):
+```nix
+environment.systemPackages = [
+  inputs.nightcap.packages.${pkgs.stdenv.hostPlatform.system}.default
+];
+```
+
+#### Вариант Б: Через оверлей (позволяет писать `pkgs.nightcap`)
+В вашем `flake.nix` подключите оверлей:
+```nix
+nixpkgs.overlays = [
+  inputs.nightcap.overlays.default
+];
+```
+После чего в любом месте `configuration.nix` можно использовать стандартный вызов:
+```nix
+environment.systemPackages = with pkgs; [
+  nightcap # или pkgs.nightcap
+];
 ```
 
 ---

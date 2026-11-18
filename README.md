@@ -77,7 +77,7 @@ nix run --impure github:nix-community/nixGL -- nix run github:rimemist/nightcap-
 
 ## ❄️ NixOS Configuration Integration
 
-Add `nightcap` to your system `flake.nix`:
+Add `nightcap` to your system `flake.nix` inputs:
 
 ```nix
 {
@@ -85,27 +85,35 @@ Add `nightcap` to your system `flake.nix`:
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     nightcap.url = "github:rimemist/nightcap-nix";
   };
-
-  outputs = { self, nixpkgs, nightcap, ... }: {
-    nixosConfigurations.yourhostname = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        # Option A: Add the overlay
-        { nixpkgs.overlays = [ nightcap.overlays.default ]; }
-
-        # Option B: Add directly to system packages
-        ({ pkgs, ... }: {
-          environment.systemPackages = [
-            nightcap.packages.x86_64-linux.default
-          ];
-        })
-      ];
-    };
-  };
+  # ...
 }
 ```
 
-Then rebuild your system (`nixos-rebuild switch --flake .`). You will have `nightcap`, `nightcap-vr`, and `nightcap-desktop` commands available in your terminal and app menu.
+Then in your configuration, choose **either** Option A or Option B:
+
+### Option A: Using `inputs` directly (Recommended)
+In your `configuration.nix` (ensure `inputs` is passed in module arguments `{ config, pkgs, inputs, ... }:`):
+```nix
+environment.systemPackages = [
+  inputs.nightcap.packages.${pkgs.stdenv.hostPlatform.system}.default
+];
+```
+
+### Option B: Using the Overlay (allows using `pkgs.nightcap`)
+In your `flake.nix` or NixOS configuration module:
+```nix
+nixpkgs.overlays = [
+  nightcap.overlays.default # or inputs.nightcap.overlays.default
+];
+```
+Then anywhere in `configuration.nix`:
+```nix
+environment.systemPackages = with pkgs; [
+  nightcap # or pkgs.nightcap
+];
+```
+
+After rebuilding (`sudo nixos-rebuild switch --flake .`), you will have `nightcap`, `nightcap-vr`, and `nightcap-desktop` commands available in your terminal, as well as **Nightcap** and **Nightcap (VR)** launcher entries in your desktop application menu!
 
 ---
 

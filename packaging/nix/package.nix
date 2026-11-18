@@ -158,6 +158,31 @@ stdenv.mkDerivation (finalAttrs: {
     makeWrapper "$out/bin/mocktail" "$out/bin/nightcap"
     makeWrapper "$out/bin/mocktail" "$out/bin/nightcap-vr" --add-flags "--vr"
     makeWrapper "$out/bin/mocktail" "$out/bin/nightcap-desktop" --add-flags "--no-vr"
+
+    # Add VR desktop action to default .desktop
+    if [ -f "$out/share/applications/io.github.CoderDayton.nightcap.desktop" ]; then
+      sed -i 's/Actions=settings;/Actions=vr;settings;/' "$out/share/applications/io.github.CoderDayton.nightcap.desktop"
+      cat <<EOF >> "$out/share/applications/io.github.CoderDayton.nightcap.desktop"
+
+[Desktop Action vr]
+Name=Play in VR (OpenXR)
+Exec=nightcap-vr %u
+EOF
+
+      # Also provide a standalone VR launcher entry in app menus
+      cat <<EOF > "$out/share/applications/nightcap-vr.desktop"
+[Desktop Entry]
+Type=Application
+Name=Nightcap (VR)
+GenericName=Roblox VR Player
+Comment=Play Roblox in OpenXR VR on Linux
+Exec=nightcap-vr %u
+Icon=io.github.CoderDayton.nightcap
+StartupWMClass=io.github.CoderDayton.nightcap
+Categories=Game;
+Terminal=false
+EOF
+    fi
   '';
 
   fixupPhase = ''
